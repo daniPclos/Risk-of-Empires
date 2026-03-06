@@ -1,8 +1,7 @@
 import math
-
 import pygame
 import random
-
+from utilities.drawing_tools import color_palette
 
 class Map:
     def __init__(
@@ -15,15 +14,9 @@ class Map:
         """
         self.display = display
         self.dic_terr: dict = {}
-        self.color_list = [
-            (200, 200, 0),
-            (255, 100, 203),
-            (166, 168, 255),
-            (255, 250, 134),
-            (168, 123, 255),
-        ]
+        self.color_list = color_palette()
 
-    def generate_map(self, n_terr=10, n_cont=2, min_dist=10):
+    def generate_map(self, n_terr=10, n_cont=2, min_dist=10, n_edg=5):
         """
         Method that generates the map as a graph containing territories as nodes
         with edges defining their connections
@@ -38,15 +31,15 @@ class Map:
         for idx, t in enumerate(l_centers):
             self.dic_terr[f"terr_{idx}"] = (Territory(f"terr_{idx}", t))
 
-        self.create_edges()
+        self.create_edges(n_edg)
         self.create_terr_surfaces()
 
-    def create_edges(self, n_av=5):
+    def create_edges(self, n_edg=5):
         """
         Method that creates edges between territories, determining their connectivity.
         This is done by computing the distance between territories and picking the
         n_av closest ones as edges.
-        :param n_av: Number of edges to generate per territory
+        :param n_edg: Number of edges to generate per territory
         :return:
         """
         for terr in self.dic_terr.values():
@@ -55,8 +48,8 @@ class Map:
                 dic_dist[terr_it.name] = calc_dist_points(terr.center, terr_it.center)
             # Remove itself from distances sort them and store the closest edges
             del dic_dist[terr.name]
-            terr.edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_av+1])
-
+            terr.edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_edg])
+            print(f"terr.edges: {terr.edges}")
 
     def create_terr_surfaces(self):
         """
@@ -77,17 +70,27 @@ class Map:
         Draw the map from the territory list
         :return:
         """
-        for terr in self.dic_terr.values():
-            self.draw_territory(self.display, terr.surf_coord)
+        for idx, terr in enumerate(self.dic_terr.values()):
+            self.draw_territory(terr.surf_coord, color=idx+1)
 
-    def draw_territory(self, display: pygame.Surface, surf_coord):
+    def draw_territory(self, surf_coord, color=0):
         """
         Draw a territory from its coordinates
         :param display:     Board display
         :param surf_coord:  Territory surface coordinates
         :return:
         """
-        pygame.draw.polygon(display, self.color_list[0], surf_coord)
+        pygame.draw.polygon(self.display, self.color_list[color], surf_coord)
+
+    def draw_centers(self):
+        """
+        Method that draws the centers of the territories
+        :return:
+        """
+        for t in self.dic_terr.values():
+            pygame.draw.polygon(self.display, self.color_list[0], ([t.center[0]-5, t.center[1]-5],
+                                                                   [t.center[0]+5, t.center[1]-5],
+                                                                   [t.center[0], t.center[1]+5]))
 
 class Territory():
     def __init__(
@@ -127,23 +130,19 @@ def random_points_with_spacing(width, height, min_dist, count):
 
     return points
 
-def test_map():
+def test_map(n_terr=10, n_cont=2, min_dist=10, n_edg=5):
     """
     Test map generation
     """
     display = pygame.display.set_mode((600, 500))
     clock = pygame.Clock()
     pygame.display.set_caption("Risk of Empires")
-    # how many territories to spawn every frame
-    n_terr = 10  # Number of territories
-    n_cont = 2  # Number of continents
-
 
     # Create map
     map = Map(display)
 
     display.fill((20, 20, 40))
-    map.generate_map(n_terr=n_terr, n_cont=n_cont)
+    map.generate_map(n_terr=n_terr, n_cont=n_cont, min_dist=min_dist, n_edg=n_edg)
 
     running = True
     while running:
@@ -155,6 +154,7 @@ def test_map():
 
         display.fill((20, 20, 40))
         map.draw_map()
+        map.draw_centers()
 
         pygame.display.flip()
         clock.tick(60)
@@ -162,4 +162,8 @@ def test_map():
     pygame.quit()
 
 if __name__ == '__main__':
-    test_map()
+    n_terr = 10
+    n_cont = 2
+    min_dist = 150
+    n_edg = 3
+    test_map(n_terr=n_terr, n_cont=n_cont, min_dist=min_dist, n_edg=n_edg)
