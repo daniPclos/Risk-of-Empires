@@ -1,3 +1,5 @@
+import math
+
 import pygame
 import random
 
@@ -12,9 +14,9 @@ class Map:
         :param display:
         """
         self.display = display
-        self.l_terr: list[Territory] = []
+        self.dic_terr: dict = {}
         self.color_list = [
-            (200, 180, 0),
+            (200, 200, 0),
             (255, 100, 203),
             (166, 168, 255),
             (255, 250, 134),
@@ -22,19 +24,60 @@ class Map:
         ]
 
     def generate_map(self, n_terr=10, n_cont=2, min_dist=10):
+        """
+        Method that generates the map as a graph containing territories as nodes
+        with edges defining their connections
+        :param n_terr:                  Number of territories to generate
+        :param n_cont:                  Number of continents to generate
+        :param min_dist:                Minimum distance between territories
+        :return:
+        """
         width, height = self.display.get_size()
+        # Create center points for the different territories
         l_centers = random_points_with_spacing(width, height, min_dist, n_terr)
         for idx, t in enumerate(l_centers):
-            surf_coord = ([t[0]-5, t[1]-5], [t[0]+5, t[1]-5], [t[0], t[1]+5])
-            self.l_terr.append(Territory(f"terr_{idx}", t, surf_coord))
-            self.draw_territory(self.display, surf_coord)
+            self.dic_terr[f"terr_{idx}"] = (Territory(f"terr_{idx}", t))
+
+        self.create_edges()
+        self.create_terr_surfaces()
+
+    def create_edges(self, n_av=5):
+        """
+        Method that creates edges between territories, determining their connectivity.
+        This is done by computing the distance between territories and picking the
+        n_av closest ones as edges.
+        :param n_av: Number of edges to generate per territory
+        :return:
+        """
+        for terr in self.dic_terr.values():
+            dic_dist = {}
+            for terr_it in self.dic_terr.values():
+                dic_dist[terr_it.name] = calc_dist_points(terr.center, terr_it.center)
+            # Remove itself from distances sort them and store the closest edges
+            del dic_dist[terr.name]
+            terr.edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_av+1])
+
+
+    def create_terr_surfaces(self):
+        """
+        Method that creates territory surfaces from distances between
+        closest neighbours defined as edges
+        :return:
+        """
+        for terr_name, terr in self.dic_terr.items():
+            l_edge_coord = []
+            # Find middle points between territory center and edges
+            for edge in terr.edges.keys():
+                l_edge_coord.append([(terr.center[0] + self.dic_terr[edge].center[0]) / 2, (terr.center[1] + self.dic_terr[edge].center[1]) / 2])
+            terr.surf_coord = l_edge_coord
+
 
     def draw_map(self):
         """
         Draw the map from the territory list
         :return:
         """
-        for terr in self.l_terr:
+        for terr in self.dic_terr.values():
             self.draw_territory(self.display, terr.surf_coord)
 
     def draw_territory(self, display: pygame.Surface, surf_coord):
@@ -51,12 +94,20 @@ class Territory():
         self,
         name,
         center: list[int],
-        surf_coord,
     ):
         self.center = center
         self.name = name
-        self.surf_coord = surf_coord
+        self.surf_coord = None
         self.edges = None
+
+def calc_dist_points(p1, p2):
+    """
+    Calculate the distance between two points
+    :param p1:      point 1 (x, y)
+    :param p2:      point 2 (x, y)
+    :return:
+    """
+    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
 def random_points_with_spacing(width, height, min_dist, count):
     """
