@@ -56,8 +56,6 @@ class Map:
             dic_edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_edg])
             for terr_name in dic_edges.keys():
                 terr.create_edge(self.dic_terr[terr_name])
-            # for edge in terr.edges.values():
-            #     print(f"edge nodes = {edge.nodes}\nedge l = {edge.l}\nedge phi = {edge.phi}\n")
 
         # Remove edges that lay beyond a nearer edge
         phi_max = self.dic_pars["phi_max"]
@@ -71,6 +69,15 @@ class Map:
             for edge_name in l_edges_to_delete:
                 print(f"deleting edge {edge_name}")
                 terr.delete_edge(edge_name)
+
+        # Sort edges by phi to ensure drawing continuous points along the periphery
+        for terr in self.dic_terr.values():
+            terr.edges = dict(
+                sorted(terr.edges.items(), key=lambda item: item[1].phi)
+            )
+
+        # for edge in terr.edges.values():
+        #     print(f"edge nodes = {edge.nodes}\nedge l = {edge.l}\nedge phi = {edge.phi}\n")
 
     def create_terr_surfaces(self):
         """
@@ -230,8 +237,8 @@ if __name__ == '__main__':
         "display_size": (600, 500),  # Display size (X-pixels, Y-pixels)
         "n_terr": 15,  # Number of territories
         "n_cont": 2,  # Number of continents
-        "min_dist": 100,  # Minimum distance between territory centers (pixels)
-        "n_edg": 4,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.15  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "min_dist": 50,  # Minimum distance between territory centers (pixels)
+        "n_edg": 9,  # Maximum number of edges (i.e. boundaries) with other territories
+        "phi_max": 0.4  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
     test_map(dic_pars)
