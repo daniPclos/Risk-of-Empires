@@ -2,25 +2,24 @@ import math
 import numpy as np
 import pygame
 import random
-from utilities.drawing_tools import color_palette
+from risk_of_empires.utilities.drawing_tools import color_palette
 from itertools import combinations
 
 
-class Map:
+class MapGenerator:
     def __init__(
-        self,
-        display: pygame.Surface,
+            self,
+            dic_pars
     ):
         """
         Container class for the map board
         :param display:
         """
         self.dic_pars = dic_pars
-        self.display = display
         self.dic_terr: dict = {}
         self.color_list = color_palette()
 
-    def generate_map(self, dic_pars):
+    def generate_map(self):
         """
         Method that generates the map as a graph containing territories as nodes
         with edges defining their connections
@@ -29,13 +28,13 @@ class Map:
         :param min_dist:                Minimum distance between territories
         :return:
         """
-        width, height = self.display.get_size()
+        width, height = self.dic_pars["display_size"]
         # Create center points for the different territories
-        l_centers = random_points_with_spacing(width, height, dic_pars["min_dist"], dic_pars["n_terr"])
+        l_centers = random_points_with_spacing(width, height, self.dic_pars["min_dist"], self.dic_pars["n_terr"])
         for idx, t in enumerate(l_centers):
             self.dic_terr[f"terr_{idx}"] = (Territory(f"terr_{idx}", t))
 
-        self.create_edges(dic_pars["n_edg"])
+        self.create_edges(self.dic_pars["n_edg"])
         self.create_terr_surfaces()
 
     def create_edges(self, n_edg):
@@ -56,19 +55,26 @@ class Map:
             dic_edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_edg])
             for terr_name in dic_edges.keys():
                 terr.create_edge(self.dic_terr[terr_name])
+                self.dic_terr[terr_name].create_edge(self.dic_terr[terr.name])  # Create reciprocal edge
 
         # Remove edges that lay beyond a nearer edge
         phi_max = self.dic_pars["phi_max"]
         for terr in self.dic_terr.values():
             l_edges_to_delete = []
+            dic_edge_rec_to_delete = {}
             for edge1, edge2 in combinations(terr.edges.values(), 2):
                 if abs(edge1.phi - edge2.phi) < phi_max:
-                    name = edge1.name if edge1.l > edge2.l else edge2.name
-                    l_edges_to_delete.append(name)
+                    edge_del = edge1 if edge1.l > edge2.l else edge2
+                    l_edges_to_delete.append(edge_del.name)
+                    dic_edge_rec_to_delete[edge_del.nodes[1]] = f"{edge_del.nodes[1]}_{terr.name}"
             # Delete identified edges
             for edge_name in l_edges_to_delete:
                 print(f"deleting edge {edge_name}")
                 terr.delete_edge(edge_name)
+            # Delete reciprocal edges
+            for terr_name, edge_del in dic_edge_rec_to_delete.items():
+                print(f"deleting reciprocal edge {edge_del}")
+                self.dic_terr[terr_name].delete_edge(edge_del)
 
         # Sort edges by phi to ensure drawing continuous points along the periphery
         for terr in self.dic_terr.values():
@@ -93,33 +99,6 @@ class Map:
                                      (terr.center[1] + self.dic_terr[edge.nodes[1]].center[1]) / 2])
             terr.surf_coord = l_edge_coord
 
-
-    def draw_map(self):
-        """
-        Draw the map from the territory list
-        :return:
-        """
-        for idx, terr in enumerate(self.dic_terr.values()):
-            self.draw_territory(terr.surf_coord, color=idx+1)
-
-    def draw_territory(self, surf_coord, color=0):
-        """
-        Draw a territory from its coordinates
-        :param display:     Board display
-        :param surf_coord:  Territory surface coordinates
-        :return:
-        """
-        pygame.draw.polygon(self.display, self.color_list[color], surf_coord)
-
-    def draw_centers(self):
-        """
-        Method that draws the centers of the territories
-        :return:
-        """
-        for t in self.dic_terr.values():
-            pygame.draw.polygon(self.display, self.color_list[0], ([t.center[0]-5, t.center[1]-5],
-                                                                   [t.center[0]+5, t.center[1]-5],
-                                                                   [t.center[0], t.center[1]+5]))
 
 class Territory():
     def __init__(
@@ -162,6 +141,56 @@ class Edge():
         self.nodes = nodes
         self.l = l
         self.phi = phi
+
+class MapRenderer:
+
+    def __init__(self, display):
+        self.display = display
+        self.color_list = color_palette()
+
+    def draw_map(self, dic_terr):
+        """
+        Draw the map from the territory list
+        :return:
+        """
+        # Draw territory surfaces
+        for idx, terr in enumerate(dic_terr.values()):
+            self.draw_territory(terr.surf_coord, color=idx + 1)
+
+        # Draw territory centers
+        self.draw_centers(dic_terr)
+
+
+    def draw_territory(self, surf_coord, color=0):
+        """
+        Draw a territory from its coordinates
+        :param display:     Board display
+        :param surf_coord:  Territory surface coordinates
+        :return:
+        """
+        pygame.draw.polygon(self.display, self.color_list[color], surf_coord)
+
+    def draw_centers(self, dic_terr):
+        """
+        Method that draws the centers of the territories
+        :return:
+        """
+        for t in dic_terr.values():
+            pygame.draw.polygon(self.display, self.color_list[0], ([t.center[0] - 5, t.center[1] - 5],
+                                                                   [t.center[0] + 5, t.center[1] - 5],
+                                                                   [t.center[0], t.center[1] + 5]))
+class Map:
+
+    def __init__(self, display, dic_par):
+
+        self.map_gen = MapGenerator(dic_par)
+        self.renderer = MapRenderer(display)
+
+    def generate_map(self):
+        self.map_gen.generate_map()
+
+    def draw_map(self):
+        self.renderer.draw_map(self.map_gen.dic_terr)
 
 def calc_dist_points(p1, p2):
     """
@@ -210,10 +239,12 @@ def test_map(dic_pars):
     pygame.display.set_caption("Risk of Empires")
 
     # Create map
-    map = Map(display)
+    # map = MapGenerator(display)
+    map = Map(display, dic_pars)
+
 
     display.fill((20, 20, 40))
-    map.generate_map(dic_pars)
+    map.generate_map()
 
     running = True
     while running:
@@ -225,7 +256,6 @@ def test_map(dic_pars):
 
         display.fill((20, 20, 40))
         map.draw_map()
-        map.draw_centers()
 
         pygame.display.flip()
         clock.tick(60)
@@ -235,10 +265,10 @@ def test_map(dic_pars):
 if __name__ == '__main__':
     dic_pars = {
         "display_size": (600, 500),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 15,  # Number of territories
+        "n_terr": 20,  # Number of territories
         "n_cont": 2,  # Number of continents
         "min_dist": 50,  # Minimum distance between territory centers (pixels)
         "n_edg": 9,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.4  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
     test_map(dic_pars)
