@@ -94,7 +94,8 @@ class MapGenerator:
             for edge in terr.edges.values():
                 p = calc_mid_point(terr.center, self.dic_terr[edge.nodes[1]].center)
                 phi = calc_phi_points(terr.center, p)
-                surf_point = SurfacePoint(p, phi)
+                q = calc_quadrant(terr.center, p)
+                surf_point = SurfacePoint(p, phi, q)
                 terr.surf_points.append(surf_point)
 
             # Add additional points
