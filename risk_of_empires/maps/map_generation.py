@@ -1,12 +1,16 @@
-import math
-import numpy as np
 import pygame
-import random
+
+from risk_of_empires.maps.edges import SurfacePoint
+from risk_of_empires.maps.territories import Territory
 from risk_of_empires.utilities.drawing_tools import color_palette
+from risk_of_empires.utilities.geometry_tools import *
 from itertools import combinations
 
 
 class MapGenerator:
+    """
+    Class that contains the logic to generate the map coordinates
+    """
     def __init__(
             self,
             dic_pars
@@ -50,7 +54,8 @@ class MapGenerator:
             dic_dist = {}
             for terr_it in self.dic_terr.values():
                 dic_dist[terr_it.name] = calc_dist_points(terr.center, terr_it.center)
-            # Remove itself from distances sort them and store the closest edges
+
+            # Remove itself from distances, sort them and store the closest edges
             del dic_dist[terr.name]
             dic_edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_edg])
             for terr_name in dic_edges.keys():
@@ -67,83 +72,45 @@ class MapGenerator:
                     edge_del = edge1 if edge1.l > edge2.l else edge2
                     l_edges_to_delete.append(edge_del.name)
                     dic_edge_rec_to_delete[edge_del.nodes[1]] = f"{edge_del.nodes[1]}_{terr.name}"
+
             # Delete identified edges
             for edge_name in l_edges_to_delete:
                 print(f"deleting edge {edge_name}")
                 terr.delete_edge(edge_name)
+
             # Delete reciprocal edges
             for terr_name, edge_del in dic_edge_rec_to_delete.items():
                 print(f"deleting reciprocal edge {edge_del}")
                 self.dic_terr[terr_name].delete_edge(edge_del)
 
-        # Sort edges by phi to ensure drawing continuous points along the periphery
-        for terr in self.dic_terr.values():
-            terr.edges = dict(
-                sorted(terr.edges.items(), key=lambda item: item[1].phi)
-            )
-
-        # for edge in terr.edges.values():
-        #     print(f"edge nodes = {edge.nodes}\nedge l = {edge.l}\nedge phi = {edge.phi}\n")
-
     def create_terr_surfaces(self):
         """
-        Method that creates territory surfaces from distances between
-        closest neighbours defined as edges
+        Method that defines the territory surface points
         :return:
         """
+        # Add midpoints between territories and edges
         for terr_name, terr in self.dic_terr.items():
-            l_edge_coord = []
             # Find middle points between territory center and edges
             for edge in terr.edges.values():
-                l_edge_coord.append([(terr.center[0] + self.dic_terr[edge.nodes[1]].center[0]) / 2,
-                                     (terr.center[1] + self.dic_terr[edge.nodes[1]].center[1]) / 2])
-            terr.surf_coord = l_edge_coord
+                p = calc_mid_point(terr.center, self.dic_terr[edge.nodes[1]].center)
+                phi = calc_phi_points(terr.center, p)
+                surf_point = SurfacePoint(p, phi)
+                terr.surf_points.append(surf_point)
 
+            # Add additional points
 
-class Territory():
-    def __init__(
-        self,
-        name,
-        center: list[int],
-    ):
-        self.name = name
-        self.center = center
-        self.surf_coord = None
-        self.edges: dict = {}
+            # Order the points based on angle phi to ensure drawing continuous points along the periphery
+            terr.surf_points.sort(key=lambda obj: obj.phi)
 
-    def create_edge(self, terr):
-        """
-        Method that creates edges between territories
-        :param terr:        Territory to create an edge with
-        :return:
-        """
-        nodes = [self.name, terr.name]
-        name = f"{self.name}_{terr.name}"
-        l = calc_dist_points(self.center, terr.center)
-        phi = calc_phi_points(self.center, terr.center)
-        edge = Edge(name, nodes, l, phi)
-        self.edges[name] = edge
+            # Extract surface points
+            for p in terr.surf_points:
+                terr.surf_coord.append(p.point)
 
-    def delete_edge(self, name):
-        """
-        Delete an edge from the territory
-        :param name:    Name of the edge to delete
-        :return:
-        """
-        try:
-            del self.edges[name]
-        except KeyError:
-            print(f"Edge {name} not found")
-
-class Edge():
-    def __init__(self, name:str, nodes: list[str], l, phi):
-        self.name = name
-        self.nodes = nodes
-        self.l = l
-        self.phi = phi
 
 class MapRenderer:
-
+    """
+    Class that renders the map
+    """
     def __init__(self, display):
         self.display = display
         self.color_list = color_palette()
@@ -180,7 +147,10 @@ class MapRenderer:
                                                                    [t.center[0] + 5, t.center[1] - 5],
                                                                    [t.center[0], t.center[1] + 5]))
 class Map:
-
+    """
+    Wrapper class that integrates the map generator and the map
+    rendering classes
+    """
     def __init__(self, display, dic_par):
 
         self.map_gen = MapGenerator(dic_par)
@@ -192,43 +162,6 @@ class Map:
     def draw_map(self):
         self.renderer.draw_map(self.map_gen.dic_terr)
 
-def calc_dist_points(p1, p2):
-    """
-    Calculate the distance between two points
-    :param p1:      point 1 (x, y)
-    :param p2:      point 2 (x, y)
-    :return:
-    """
-    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
-
-def calc_phi_points(p1, p2):
-    """
-    Calculate angle between the line generated by the points
-    p1, p2 and the X-axis of the map
-    :param p1:      point 1 (x, y)
-    :param p2:      point 2 (x, y)
-    :return:
-    """
-    return np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
-
-def random_points_with_spacing(width, height, min_dist, count):
-    """
-    Function to randomly draw random points within a certain distance
-    :param width:       width of the map
-    :param height:      height of the map
-    :param min_dist:    minimum distance between the point
-    :param count:       number of random points to draw
-    :return:
-    """
-    points = []
-
-    while len(points) < count:
-        p = [random.uniform(0, width), random.uniform(0, height)]
-        if all((p[0]-q[0])**2 + (p[1]-q[1])**2 >= min_dist**2 for q in points):
-            points.append(p)
-
-    return points
-
 
 def test_map(dic_pars):
     """
@@ -239,7 +172,6 @@ def test_map(dic_pars):
     pygame.display.set_caption("Risk of Empires")
 
     # Create map
-    # map = MapGenerator(display)
     map = Map(display, dic_pars)
 
 
@@ -265,10 +197,10 @@ def test_map(dic_pars):
 if __name__ == '__main__':
     dic_pars = {
         "display_size": (600, 500),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 20,  # Number of territories
+        "n_terr": 10,  # Number of territories
         "n_cont": 2,  # Number of continents
-        "min_dist": 50,  # Minimum distance between territory centers (pixels)
-        "n_edg": 9,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "min_dist": 100,  # Minimum distance between territory centers (pixels)
+        "n_edg": 4,  # Maximum number of edges (i.e. boundaries) with other territories
+        "phi_max": 0.2  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
     test_map(dic_pars)
