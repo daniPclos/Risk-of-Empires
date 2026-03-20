@@ -55,7 +55,7 @@ class MapGenerator:
             for terr_it in self.dic_terr.values():
                 dic_dist[terr_it.name] = calc_dist_points(terr.center, terr_it.center)
 
-            # Remove itself from distances, sort them and store the closest edges
+            # Remove itself from distances, sort them and store the n_edg closest edges
             del dic_dist[terr.name]
             dic_edges = dict(sorted(dic_dist.items(), key=lambda item: item[1])[:n_edg])
             for terr_name in dic_edges.keys():
@@ -98,7 +98,12 @@ class MapGenerator:
                 surf_point = SurfacePoint(p, phi, q)
                 terr.surf_points.append(surf_point)
 
-            # Add additional points
+            # Add additional points in missing quadrants
+            for q, val in terr.dic_quadrants.items():
+                if val==0:
+                    p = terr.add_point_to_quadrant(q, self.dic_pars["display_size"])
+                    phi = calc_phi_points(terr.center, p)
+                    terr.surf_points.append(SurfacePoint(p, phi, q))
 
             # Order the points based on angle phi to ensure drawing continuous points along the periphery
             terr.surf_points.sort(key=lambda obj: obj.phi)
@@ -197,11 +202,11 @@ def test_map(dic_pars):
 
 if __name__ == '__main__':
     dic_pars = {
-        "display_size": (600, 500),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 10,  # Number of territories
+        "display_size": (900, 700),  # Display size (X-pixels, Y-pixels)
+        "n_terr": 20,  # Number of territories
         "n_cont": 2,  # Number of continents
-        "min_dist": 100,  # Minimum distance between territory centers (pixels)
-        "n_edg": 4,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.2  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "min_dist": 50,  # Minimum distance between territory centers (pixels)
+        "n_edg": 5,  # Maximum number of edges (i.e. boundaries) with other territories
+        "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
     test_map(dic_pars)

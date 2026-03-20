@@ -45,13 +45,13 @@ def calc_quadrant(c, p):
 
     # Assign quadrant
     if x_diff >= 0 and y_diff > 0:
-        return 1
+        return "Q1"
     elif x_diff < 0 and y_diff >= 0:
-        return 2
+        return "Q2"
     elif x_diff <= 0 and y_diff < 0:
-        return 3
+        return "Q3"
     elif x_diff > 0 and y_diff <= 0:
-        return 4
+        return "Q4"
     else:
         raise ValueError(f"Quadrant not defined for c = {c} and p = {p}\n ")
 
