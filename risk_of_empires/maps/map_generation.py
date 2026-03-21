@@ -1,7 +1,7 @@
 import pygame
 
 from risk_of_empires.maps.edges import SurfacePoint
-from risk_of_empires.maps.territories import Territory
+from risk_of_empires.maps.territories import Territory, CompleteGraphGenerator
 from risk_of_empires.utilities.drawing_tools import color_palette
 from risk_of_empires.utilities.geometry_tools import *
 from itertools import combinations
@@ -39,6 +39,8 @@ class MapGenerator:
             self.dic_terr[f"terr_{idx}"] = (Territory(f"terr_{idx}", t))
 
         self.create_edges(self.dic_pars["n_edg"])
+        self.order_edges_phi()
+        self.extract_complete_graphs()
         self.create_terr_surfaces()
 
     def create_edges(self, n_edg):
@@ -82,6 +84,45 @@ class MapGenerator:
             for terr_name, edge_del in dic_edge_rec_to_delete.items():
                 print(f"deleting reciprocal edge {edge_del}")
                 self.dic_terr[terr_name].delete_edge(edge_del)
+
+    def order_edges_phi(self):
+        """
+        Order edges by angle phi
+        :return:
+        """
+        for terr in self.dic_terr.values():
+            terr.edges = dict(sorted(terr.edges.items(), key=lambda item: item[1].phi))
+
+    def extract_complete_graphs(self):
+        """
+        Method that extracts complete graphs within the map.
+        That is sets of 3, 4, ..., n_edge territories that are
+        all connected to each other.
+        :return:
+        """
+        k_x = CompleteGraphGenerator()
+        for terr_name, terr in self.dic_terr.items():
+            # Add potential triangles
+            edges = list(terr.edges.values())
+            if len(edges) == 2:
+                terr1 = self.dic_terr[edges[0].nodes[1]]
+                terr2 = self.dic_terr[edges[1].nodes[1]]  # wraps around
+                k_x.add_graph([terr, terr1, terr2])
+            else:
+                for i in range(len(edges)):
+                    terr1 = self.dic_terr[edges[i].nodes[1]]
+                    terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]  # wraps around
+                    k_x.add_graph([terr, terr1, terr2])
+
+        # Check for complete graphs
+        for graph_name, graph in k_x.graphs.items():
+            if graph.i_times == graph.n:
+                graph.b_complete = True
+                print(f"{graph_name} is complete")
+            # else:
+            #     print(f"{graph_name} is not complete")
+            #     print(f"i_times = {graph.i_times}")
+
 
     def create_terr_surfaces(self):
         """
@@ -203,8 +244,8 @@ def test_map(dic_pars):
 if __name__ == '__main__':
     dic_pars = {
         "display_size": (900, 700),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 20,  # Number of territories
-        "n_cont": 2,  # Number of continents
+        "n_terr": 5,  # Number of territories
+        "n_cont": 5,  # Number of continents
         "min_dist": 50,  # Minimum distance between territory centers (pixels)
         "n_edg": 5,  # Maximum number of edges (i.e. boundaries) with other territories
         "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between

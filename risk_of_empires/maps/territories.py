@@ -92,3 +92,46 @@ def q_coeff(q:str):
         "Q4": (1, -1),
     }
     return dic_q_coeff[q]
+
+class CompleteGraphX:
+    """
+    Class that represents a complete graph, where all territories
+    are connected to each other.
+    """
+    def __init__(self, l_terr:list[Territory], name):
+        """
+        Complete graph constructor.
+        :param l_terr:          list of territories
+        """
+        self.n = len(l_terr)
+        self.l_terr = l_terr.sort(key=lambda obj: obj.center[0])
+        self.name = name
+        self.i_times = 1
+        self.b_complete = False
+
+class CompleteGraphGenerator():
+    """
+    Class that generates complete graphs by storing
+    sets of territories from each territory perspective
+    to assess cross-connectivity leading to complete graphs.
+    """
+    def __init__(self):
+        self.graphs = {}
+
+    def add_graph(self, l_terr:list[Territory]):
+        """
+        Method that adds new graphs to dic_graphs if they do
+        not yet exist or increases their counter to evaluate
+        if they are complete, otherwise.
+        :param l_terr:          List of territories candidates as
+                                complete graphs
+        :return:
+        """
+        name = self.make_graph_name(l_terr)
+        if name in self.graphs:
+            self.graphs[name].i_times += 1
+        else:
+            self.graphs[name] = CompleteGraphX(l_terr, name)
+
+    def make_graph_name(self, l_terr:list[Territory]):
+        return "_".join(sorted([f"{terr.name}" for terr in l_terr]))
