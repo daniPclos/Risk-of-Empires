@@ -2,7 +2,7 @@ class Edge():
     """
     Class that represents an edge connecting two territories.
     """
-    def __init__(self, name:str, nodes: list[str], l, phi, q):
+    def __init__(self, name:str, nodes: list[str], l, phi, q, p):
         """
         Initialize an edge connecting two territories.
         :param name:        Name of the edge as ("node1_node2")
@@ -11,12 +11,15 @@ class Edge():
         :param phi:         Angle between the two territory centers and the X-axis of the map
         :param q:           Quadrant where the edge connects with respect to the center of the
                             territory storing the edge
+        :param p:           Point of the edge connecting the two territories
+
         """
         self.name = name
         self.nodes = nodes
         self.l = l
         self.phi = phi
         self.q = q
+        self.p = p
 
 
 class SurfacePoint():

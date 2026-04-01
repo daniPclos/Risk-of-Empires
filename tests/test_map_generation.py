@@ -10,7 +10,7 @@ def dic_pars():
         "n_cont": 2,  # Number of continents
         "min_dist": 50,  # Minimum distance between territory centers (pixels)
         "n_edg": 9,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "phi_min": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
 
 @pytest.fixture(scope="module")

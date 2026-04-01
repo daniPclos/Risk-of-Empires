@@ -22,6 +22,7 @@ class MapGenerator:
         self.dic_pars = dic_pars
         self.dic_terr: dict = {}
         self.color_list = color_palette()
+        self.k_x = None
 
     def generate_map(self):
         """
@@ -41,6 +42,7 @@ class MapGenerator:
         self.create_edges(self.dic_pars["n_edg"])
         self.order_edges_phi()
         self.extract_complete_graphs()
+        self.add_boundary_points()
         self.create_terr_surfaces()
 
     def create_edges(self, n_edg):
@@ -65,12 +67,12 @@ class MapGenerator:
                 self.dic_terr[terr_name].create_edge(self.dic_terr[terr.name])  # Create reciprocal edge
 
         # Remove edges that lay beyond a nearer edge
-        phi_max = self.dic_pars["phi_max"]
+        phi_min = self.dic_pars["phi_min"]
         for terr in self.dic_terr.values():
             l_edges_to_delete = []
             dic_edge_rec_to_delete = {}
             for edge1, edge2 in combinations(terr.edges.values(), 2):
-                if abs(edge1.phi - edge2.phi) < phi_max:
+                if abs(edge1.phi - edge2.phi) < phi_min:
                     edge_del = edge1 if edge1.l > edge2.l else edge2
                     l_edges_to_delete.append(edge_del.name)
                     dic_edge_rec_to_delete[edge_del.nodes[1]] = f"{edge_del.nodes[1]}_{terr.name}"
@@ -102,27 +104,66 @@ class MapGenerator:
         """
         k_x = CompleteGraphGenerator()
         for terr_name, terr in self.dic_terr.items():
-            # Add potential triangles
+            # Add potential K3 (triangles) and K4 (cross-squares)
             edges = list(terr.edges.values())
             if len(edges) == 2:
                 terr1 = self.dic_terr[edges[0].nodes[1]]
-                terr2 = self.dic_terr[edges[1].nodes[1]]  # wraps around
-                k_x.add_graph([terr, terr1, terr2])
-            else:
+                terr2 = self.dic_terr[edges[1].nodes[1]]
+                k_x.add_graph([terr, terr1, terr2],
+                              {edge.name: edge for edge in edges})
+            elif len(edges) == 3:
+                terr1 = self.dic_terr[edges[0].nodes[1]]
+                terr2 = self.dic_terr[edges[1].nodes[1]]
+                terr3 = self.dic_terr[edges[2].nodes[1]]
+                k_x.add_graph([terr, terr1, terr2, terr3],
+                              {edge.name: edge for edge in edges})
+
+                # Add K3
                 for i in range(len(edges)):
                     terr1 = self.dic_terr[edges[i].nodes[1]]
-                    terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]  # wraps around
-                    k_x.add_graph([terr, terr1, terr2])
+                    terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
+                    k_x.add_graph([terr, terr1, terr2],
+                                  {edges[i].name: edges[i],
+                                   edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)]})
+            else:
+                for i in range(len(edges)):
+                    # Add K3
+                    terr1 = self.dic_terr[edges[i].nodes[1]]
+                    terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
+                    k_x.add_graph([terr, terr1, terr2],
+                                  {edges[i].name: edges[i],
+                                   edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)]})
 
-        # Check for complete graphs
-        for graph_name, graph in k_x.graphs.items():
-            if graph.i_times == graph.n:
-                graph.b_complete = True
-                print(f"{graph_name} is complete")
-            # else:
-            #     print(f"{graph_name} is not complete")
-            #     print(f"i_times = {graph.i_times}")
+                    # Add K4
+                    terr1 = self.dic_terr[edges[i].nodes[1]]
+                    terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
+                    terr3 = self.dic_terr[edges[(i + 2) % len(edges)].nodes[1]]
+                    k_x.add_graph([terr, terr1, terr2, terr3],
+                                  {edges[i].name: edges[i],
+                                   edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)],
+                                   edges[(i + 2) % len(edges)].name: edges[(i + 2) % len(edges)]})
 
+        # transfer complete graphs (keep incomplete graphs as they might be useful in the future)
+        k_x.transfer_complete_graphs()
+        k_x.get_bound_p_for_complete_graphs()
+        self.k_x = k_x
+
+    def add_boundary_points(self):
+        """
+        Method that adds and readjusts boundary points between territories
+        to avoid overlaps.
+        :return:
+        """
+        for k_x in self.k_x.dic_complete_graphs.values():
+            if k_x.n == 3:
+                x = np.average([vals[0] for vals in k_x.dic_points_adj.values()])
+                y = np.average([vals[1] for vals in k_x.dic_points_adj.values()])
+                for terr in k_x.l_terr:
+                    p = [x,y]
+                    phi = calc_phi_points(terr.center, p)
+                    q = calc_quadrant(terr.center, p)
+                    surf_point = SurfacePoint(p, phi, q)
+                    terr.surf_points.append(surf_point)
 
     def create_terr_surfaces(self):
         """
@@ -244,10 +285,10 @@ def test_map(dic_pars):
 if __name__ == '__main__':
     dic_pars = {
         "display_size": (900, 700),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 5,  # Number of territories
+        "n_terr": 20,  # Number of territories
         "n_cont": 5,  # Number of continents
         "min_dist": 50,  # Minimum distance between territory centers (pixels)
         "n_edg": 5,  # Maximum number of edges (i.e. boundaries) with other territories
-        "phi_max": 0.3  # Maximum angle between 2 edges (avoid creating boundary with a territory that has another in between
+        "phi_min": 0.3  # Minimum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
     test_map(dic_pars)

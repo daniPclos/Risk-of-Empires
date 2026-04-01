@@ -36,12 +36,12 @@ class Territory():
         :return:
         """
         nodes = [self.name, terr.name]
-        name = f"{self.name}_{terr.name}"
+        name = "_".join(sorted([self.name, terr.name]))
         l = calc_dist_points(self.center, terr.center)
         phi = calc_phi_points(self.center, terr.center)
-        midt_point = calc_mid_point(self.center, terr.center)
-        q = calc_quadrant(self.center, midt_point)
-        edge = Edge(name, nodes, l, phi, q)
+        p = calc_mid_point(self.center, terr.center)
+        q = calc_quadrant(self.center, p)
+        edge = Edge(name, nodes, l, phi, q, p)
         self.edges[name] = edge
         self.dic_quadrants[q] = 1
 
@@ -93,21 +93,41 @@ def q_coeff(q:str):
     }
     return dic_q_coeff[q]
 
-class CompleteGraphX:
+class SubGraphX:
     """
-    Class that represents a complete graph, where all territories
+    Class that represents a potential complete sub graph, where all territories
     are connected to each other.
     """
-    def __init__(self, l_terr:list[Territory], name):
+    def __init__(self, l_terr:list[Territory], name, dic_edges:dict[Edge]):
         """
         Complete graph constructor.
         :param l_terr:          list of territories
+        :param dic_edges:         List of edges joining the territories
+
         """
         self.n = len(l_terr)
-        self.l_terr = l_terr.sort(key=lambda obj: obj.center[0])
+        self.l_terr = l_terr #l_terr.sort(key=lambda obj: obj.center[0])
+        self.dic_edges = dic_edges
         self.name = name
         self.i_times = 1
-        self.b_complete = False
+        self.dic_points_adj = None
+        self.dic_ponts_cross = None
+
+    def get_bound_p(self):
+        """
+        Method that returns the boundary points between the territories, assuming
+        they are all connected to each other, i.e. complete.
+        :return:
+        """
+        # Get boundary points for K3
+        if len(self.l_terr)==3:
+            self.dic_points_adj = {edge.name: edge.p for edge in self.dic_edges.values()}
+
+        elif len(self.l_terr)==4:
+            dic_points_adj = {}
+            dic_points_cross = {}
+
+
 
 class CompleteGraphGenerator():
     """
@@ -116,22 +136,49 @@ class CompleteGraphGenerator():
     to assess cross-connectivity leading to complete graphs.
     """
     def __init__(self):
-        self.graphs = {}
+        self.dic_incomplete_graphs = {}
+        self.dic_complete_graphs = {}
 
-    def add_graph(self, l_terr:list[Territory]):
+    def add_graph(self, l_terr:list[Territory], dic_edges:dict[Edge]):
         """
         Method that adds new graphs to dic_graphs if they do
         not yet exist or increases their counter to evaluate
         if they are complete, otherwise.
         :param l_terr:          List of territories candidates as
                                 complete graphs
+        :param dic_edges:         List of edges joining the territories
         :return:
         """
         name = self.make_graph_name(l_terr)
-        if name in self.graphs:
-            self.graphs[name].i_times += 1
+        if name in self.dic_incomplete_graphs:
+            self.dic_incomplete_graphs[name].i_times += 1
+            # Add new edges or overwrite existing ones
+            for edge_name, edge in dic_edges.items():
+                self.dic_incomplete_graphs[name].dic_edges[edge_name] = edge
         else:
-            self.graphs[name] = CompleteGraphX(l_terr, name)
+            self.dic_incomplete_graphs[name] = SubGraphX(l_terr, name, dic_edges)
 
     def make_graph_name(self, l_terr:list[Territory]):
         return "_".join(sorted([f"{terr.name}" for terr in l_terr]))
+
+    def transfer_complete_graphs(self):
+        """
+        Method that transfer complete graphs to specific placeholder.
+        :return:
+        """
+        l_graphs_to_transfer = []
+        for graph_name, graph in self.dic_incomplete_graphs.items():
+            if graph.i_times == graph.n:
+                l_graphs_to_transfer.append(graph_name)
+
+        for graph_name in l_graphs_to_transfer:
+            self.dic_complete_graphs[graph_name] = self.dic_incomplete_graphs.pop(graph_name)
+
+    def get_bound_p_for_complete_graphs(self):
+        """
+        Method that saves the boundary points between the territories forming
+        complete graphs.
+        :return:
+        """
+        for graph in self.dic_complete_graphs.values():
+            graph.get_bound_p()
