@@ -38,11 +38,11 @@ def test_edge_reciprocity(map, dic_pars):
     l_one_way_edges = []
     for terr in map.dic_terr.values():
         for edge in terr.edges.values():
-            # Retrieve neighbour's territory name (edge2)
-            edge2 = edge.nodes[1]
+            # Retrieve neighbour's territory name
+            terr2 = edge.nodes[1]
             try:
                 # Attempt retrieving corresponding edge
-                map.dic_terr[edge2].edges[f"{edge2}_{terr.name}"]
+                map.dic_terr[terr2].edges[edge.name]
             except KeyError:
                 l_one_way_edges.append(edge.name)
     assert len(l_one_way_edges) == 0

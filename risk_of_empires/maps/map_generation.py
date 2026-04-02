@@ -75,7 +75,7 @@ class MapGenerator:
                 if abs(edge1.phi - edge2.phi) < phi_min:
                     edge_del = edge1 if edge1.l > edge2.l else edge2
                     l_edges_to_delete.append(edge_del.name)
-                    dic_edge_rec_to_delete[edge_del.nodes[1]] = f"{edge_del.nodes[1]}_{terr.name}"
+                    dic_edge_rec_to_delete[edge_del.nodes[1]] = edge_del.name
 
             # Delete identified edges
             for edge_name in l_edges_to_delete:
