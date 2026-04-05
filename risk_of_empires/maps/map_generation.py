@@ -1,7 +1,8 @@
 import pygame
 
 from risk_of_empires.maps.edges import SurfacePoint
-from risk_of_empires.maps.territories import Territory, CompleteGraphGenerator
+from risk_of_empires.maps.territories import Territory
+from risk_of_empires.maps.graph_analysis import CompleteGraphGenerator
 from risk_of_empires.utilities.drawing_tools import color_palette
 from risk_of_empires.utilities.geometry_tools import *
 from itertools import combinations
@@ -37,11 +38,13 @@ class MapGenerator:
         # Create center points for the different territories
         l_centers = random_points_with_spacing(width, height, self.dic_pars["min_dist"], self.dic_pars["n_terr"])
         for idx, t in enumerate(l_centers):
-            self.dic_terr[f"terr_{idx}"] = (Territory(f"terr_{idx}", t))
+            self.dic_terr[f"terr{idx}"] = (Territory(f"terr{idx}", t))
 
         self.create_edges(self.dic_pars["n_edg"])
         self.order_edges_phi()
         self.extract_complete_graphs()
+        self.add_midtpoints()
+        self.add_points_missing_quadrants()
         self.add_boundary_points()
         self.create_terr_surfaces()
 
@@ -71,7 +74,7 @@ class MapGenerator:
         for terr in self.dic_terr.values():
             l_edges_to_delete = []
             dic_edge_rec_to_delete = {}
-            for edge1, edge2 in combinations(terr.edges.values(), 2):
+            for edge1, edge2 in combinations(terr.dic_edges.values(), 2):
                 if abs(edge1.phi - edge2.phi) < phi_min:
                     edge_del = edge1 if edge1.l > edge2.l else edge2
                     l_edges_to_delete.append(edge_del.name)
@@ -93,7 +96,7 @@ class MapGenerator:
         :return:
         """
         for terr in self.dic_terr.values():
-            terr.edges = dict(sorted(terr.edges.items(), key=lambda item: item[1].phi))
+            terr.dic_edges = dict(sorted(terr.dic_edges.items(), key=lambda item: item[1].phi))
 
     def extract_complete_graphs(self):
         """
@@ -105,7 +108,7 @@ class MapGenerator:
         k_x = CompleteGraphGenerator()
         for terr_name, terr in self.dic_terr.items():
             # Add potential K3 (triangles) and K4 (cross-squares)
-            edges = list(terr.edges.values())
+            edges = list(terr.dic_edges.values())
             if len(edges) == 2:
                 terr1 = self.dic_terr[edges[0].nodes[1]]
                 terr2 = self.dic_terr[edges[1].nodes[1]]
@@ -148,6 +151,30 @@ class MapGenerator:
         k_x.get_bound_p_for_complete_graphs()
         self.k_x = k_x
 
+    def add_midtpoints(self):
+        """
+        Method that adds midpoints between territory edges.
+        :return:
+        """
+        # Add midpoints between territories and edges
+        for terr_name, terr in self.dic_terr.items():
+            # Find middle points between territory center and edges
+            for edge in terr.dic_edges.values():
+                p = calc_mid_point(terr.center, self.dic_terr[edge.nodes[1]].center)
+                terr.add_surface_point(p)
+
+    def add_points_missing_quadrants(self):
+        """
+        Method that adds points to missing quadrants.
+        :return:
+        """
+        # Add additional points in missing quadrants
+        for terr_name, terr in self.dic_terr.items():
+            for q, val in terr.dic_quadrants.items():
+                if val==0:
+                    p = terr.add_point_to_quadrant(q, self.dic_pars["display_size"])
+                    terr.add_surface_point(p)
+
     def add_boundary_points(self):
         """
         Method that adds and readjusts boundary points between territories
@@ -158,42 +185,48 @@ class MapGenerator:
             if k_x.n == 3:
                 x = np.average([vals[0] for vals in k_x.dic_points_adj.values()])
                 y = np.average([vals[1] for vals in k_x.dic_points_adj.values()])
-                for terr in k_x.l_terr:
+                for terr_name in k_x.l_terr:
                     p = [x,y]
-                    phi = calc_phi_points(terr.center, p)
-                    q = calc_quadrant(terr.center, p)
-                    surf_point = SurfacePoint(p, phi, q)
-                    terr.surf_points.append(surf_point)
+                    terr_name.add_surface_point(p)
+
+            elif k_x.n == 4:
+                # Extract territories from the 2 cross edges and assign the coordinates of one of them to the other
+                l_terr_names = []
+                l_points = []
+                for edge_name, point in k_x.dic_points_cross.items():
+                    l_terr_names.append(edge_name.split('_'))
+                    l_points.append(point)
+                print(f"l_points = {l_points}")
+                print(f"l_terr_names = {l_terr_names}")
+                # Identify surface point to be deleted and replaced by the other cross edge point
+                # Only point sought put into list since not possible to delete dic elements while iterating on it
+                for terr_name in l_terr_names[0]:
+                    l_p_delete = []
+                    for p_name, p in self.dic_terr[terr_name].dic_surf_points.items():
+                        if p.point == l_points[0]:
+                            l_p_delete.append(p_name)
+                    # Add new point and then delete old one
+                    if not l_p_delete:
+                        pass
+                    self.dic_terr[terr_name].add_surface_point(l_points[1])
+                    del self.dic_terr[terr_name].dic_surf_points[l_p_delete[0]]
+
 
     def create_terr_surfaces(self):
         """
-        Method that defines the territory surface points
+        Method that creates the territory surface points in suitable format
+        for drawing utility.
         :return:
         """
-        # Add midpoints between territories and edges
+        # Order the points based on angle phi to ensure drawing continuous points along the periphery
         for terr_name, terr in self.dic_terr.items():
-            # Find middle points between territory center and edges
-            for edge in terr.edges.values():
-                p = calc_mid_point(terr.center, self.dic_terr[edge.nodes[1]].center)
-                phi = calc_phi_points(terr.center, p)
-                q = calc_quadrant(terr.center, p)
-                surf_point = SurfacePoint(p, phi, q)
-                terr.surf_points.append(surf_point)
-
-            # Add additional points in missing quadrants
-            for q, val in terr.dic_quadrants.items():
-                if val==0:
-                    p = terr.add_point_to_quadrant(q, self.dic_pars["display_size"])
-                    phi = calc_phi_points(terr.center, p)
-                    terr.surf_points.append(SurfacePoint(p, phi, q))
-
-            # Order the points based on angle phi to ensure drawing continuous points along the periphery
-            terr.surf_points.sort(key=lambda obj: obj.phi)
+            terr.dic_surf_points = dict(
+                sorted(terr.dic_surf_points.items(), key=lambda item: item[1].phi)
+            )
 
             # Extract surface points
-            for p in terr.surf_points:
+            for p in terr.dic_surf_points.values():
                 terr.surf_coord.append(p.point)
-
 
 class MapRenderer:
     """

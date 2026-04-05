@@ -21,9 +21,9 @@ class Territory():
         """
         self.name = name
         self.center = center
-        self.edges: dict = {}
-        self.surf_points: list[SurfacePoint] = []
-        self.surf_coord = []
+        self.dic_edges: dict = {}
+        self.dic_surf_points: dict = {}  # Surface coordinates as list of SurfacePoint objects
+        self.surf_coord = []  # Surface coordinates ordered by phi in format for drawing utility
         self.dic_quadrants = {"Q1": 0,
                               "Q2": 0,
                               "Q3": 0,
@@ -42,7 +42,7 @@ class Territory():
         p = calc_mid_point(self.center, terr.center)
         q = calc_quadrant(self.center, p)
         edge = Edge(name, nodes, l, phi, q, p)
-        self.edges[name] = edge
+        self.dic_edges[name] = edge
         self.dic_quadrants[q] = 1
 
     def delete_edge(self, name):
@@ -52,7 +52,7 @@ class Territory():
         :return:
         """
         try:
-            del self.edges[name]
+            del self.dic_edges[name]
         except KeyError:
             print(f"Edge {name} not found")
 
@@ -67,7 +67,7 @@ class Territory():
         """
         # Compute maximum distances in X and Y directions for existing edges to balance a similar distance in the missing quadrant
         x_max, y_max = 100, 100
-        for edge in self.edges.values():
+        for edge in self.dic_edges.values():
             x_max = max(x_max, np.abs(edge.l * np.cos(edge.phi))/2)
             y_max = max(y_max, np.abs(edge.l * np.sin(edge.phi))/2)
 
@@ -77,6 +77,30 @@ class Territory():
 
         # Return point in quadrant ensuring that doesn't fall beyond the edge of the map
         return (self.center[0] + q_coeff(q)[0] * min(x_max, x_lim), self.center[1] + q_coeff(q)[1] * min(y_max, y_lim))
+
+    def add_surface_point(self, p:list[int]):
+        """
+        Method that adds surface points to the territory
+        :return:
+        """
+        phi = calc_phi_points(self.center, p)
+        q = calc_quadrant(self.center, p)
+        surf_point = SurfacePoint(p, phi, q)
+        name = f"{self.name}_{len(self.dic_surf_points)+1}"
+        self.dic_surf_points[name] = surf_point
+
+    def order_edges_by_phi(self, l_edge=[]):
+        """
+        Method that orders edges according to phi. If subset of edges
+        l_edge is passed, that specific subset is ordered and returned
+        :return:
+        """
+        if l_edge:
+            subset = {k: self.dic_edges[k] for k in l_edge}
+            return dict(sorted(subset.items(), key=lambda item: item[1].phi))
+        else:
+            dic_edges = dict(sorted(self.dic_edges.items(), key=lambda item: item[1].phi))
+            self.dic_edges = dic_edges
 
 
 def q_coeff(q:str):
@@ -93,92 +117,4 @@ def q_coeff(q:str):
     }
     return dic_q_coeff[q]
 
-class SubGraphX:
-    """
-    Class that represents a potential complete sub graph, where all territories
-    are connected to each other.
-    """
-    def __init__(self, l_terr:list[Territory], name, dic_edges:dict[Edge]):
-        """
-        Complete graph constructor.
-        :param l_terr:          list of territories
-        :param dic_edges:         List of edges joining the territories
 
-        """
-        self.n = len(l_terr)
-        self.l_terr = l_terr #l_terr.sort(key=lambda obj: obj.center[0])
-        self.dic_edges = dic_edges
-        self.name = name
-        self.i_times = 1
-        self.dic_points_adj = None
-        self.dic_ponts_cross = None
-
-    def get_bound_p(self):
-        """
-        Method that returns the boundary points between the territories, assuming
-        they are all connected to each other, i.e. complete.
-        :return:
-        """
-        # Get boundary points for K3
-        if len(self.l_terr)==3:
-            self.dic_points_adj = {edge.name: edge.p for edge in self.dic_edges.values()}
-
-        elif len(self.l_terr)==4:
-            dic_points_adj = {}
-            dic_points_cross = {}
-
-
-
-class CompleteGraphGenerator():
-    """
-    Class that generates complete graphs by storing
-    sets of territories from each territory perspective
-    to assess cross-connectivity leading to complete graphs.
-    """
-    def __init__(self):
-        self.dic_incomplete_graphs = {}
-        self.dic_complete_graphs = {}
-
-    def add_graph(self, l_terr:list[Territory], dic_edges:dict[Edge]):
-        """
-        Method that adds new graphs to dic_graphs if they do
-        not yet exist or increases their counter to evaluate
-        if they are complete, otherwise.
-        :param l_terr:          List of territories candidates as
-                                complete graphs
-        :param dic_edges:         List of edges joining the territories
-        :return:
-        """
-        name = self.make_graph_name(l_terr)
-        if name in self.dic_incomplete_graphs:
-            self.dic_incomplete_graphs[name].i_times += 1
-            # Add new edges or overwrite existing ones
-            for edge_name, edge in dic_edges.items():
-                self.dic_incomplete_graphs[name].dic_edges[edge_name] = edge
-        else:
-            self.dic_incomplete_graphs[name] = SubGraphX(l_terr, name, dic_edges)
-
-    def make_graph_name(self, l_terr:list[Territory]):
-        return "_".join(sorted([f"{terr.name}" for terr in l_terr]))
-
-    def transfer_complete_graphs(self):
-        """
-        Method that transfer complete graphs to specific placeholder.
-        :return:
-        """
-        l_graphs_to_transfer = []
-        for graph_name, graph in self.dic_incomplete_graphs.items():
-            if graph.i_times == graph.n:
-                l_graphs_to_transfer.append(graph_name)
-
-        for graph_name in l_graphs_to_transfer:
-            self.dic_complete_graphs[graph_name] = self.dic_incomplete_graphs.pop(graph_name)
-
-    def get_bound_p_for_complete_graphs(self):
-        """
-        Method that saves the boundary points between the territories forming
-        complete graphs.
-        :return:
-        """
-        for graph in self.dic_complete_graphs.values():
-            graph.get_bound_p()
