@@ -23,10 +23,11 @@ class SubGraphX:
         self.dic_points_adj = {}
         self.dic_points_cross = {}
 
-    def get_bound_p(self):
+    def get_adj_cross_edges(self):
         """
-        Method that returns the boundary points between the territories, assuming
-        they are all connected to each other, i.e. complete.
+        Method that classifies edges from complete graphs between
+        edges that join adjacent territories and edges that join
+        non-adjacent territories (i.e. crosses inside a square for a K4).
         :return:
         """
         # Get boundary points for K3
@@ -34,30 +35,68 @@ class SubGraphX:
             self.dic_points_adj = {edge.name: edge.p for edge in self.dic_edges.values()}
 
         elif self.n==4:
-            dic_points_cross = {}
-            dic_points_adj = {}
-
             # Identify first cross-edge and then 2nd edge after ordering by phi
             terr1 = self.l_terr[0]
-            l_edges_t1 = [key for key in self.dic_edges.keys() if is_str_in_concat_str(terr1.name, key)]  # OBS terr1 IS in terr10_terr16
-            l_edges_ord = terr1.order_edges_by_phi(l_edges_t1)
-            edg_c1 = list(l_edges_ord.values())[1]
+            for terr in self.l_terr:
+                print(f"{terr.name} has center {terr.center}")
+            # Method using minimum phi difference between edges
+            l_edges_t1 = [val for key, val in self.dic_edges.items() if is_str_in_concat_str(terr1.name, key)]
+            print(f"terr1.name: {terr1.name}")
+            print(f"l_edges_t1 =  {[edge.name for edge in l_edges_t1]}")
+            edg_c1 = self.get_cross_edge(l_edges_t1, terr1.name)
+            print(f"edg_c1.name: {edg_c1.name}")
             self.dic_points_cross[edg_c1.name] = edg_c1.p
 
             # Identify the other crossed edge by doing the same with one of the territories not bordering edg_c1
-            terr2_c1 = edg_c1.nodes[1]
-            for terr2 in self.l_terr[1:]:
-                if terr2.name != terr2_c1:
-                    l_edges_t2 = [key for key in self.dic_edges.keys() if is_str_in_concat_str(terr2.name, key)]
-                    l_edges_ord = terr2.order_edges_by_phi(l_edges_t2)
-                    edge_c2 = list(l_edges_ord.values())[1]
-                    self.dic_points_cross[edge_c2.name] = edge_c2.p
+            terr2_c1_name = [t for t in edg_c1.nodes if t!=terr1.name][0]
+            print(f"terr2_c1_name: {terr2_c1_name}")
+            for terr3 in self.l_terr[1:]:
+                if terr3.name != terr2_c1_name:
+                    # Method using minimum phi difference between edges
+                    l_edges_t2 = [val for key, val in self.dic_edges.items() if
+                                      is_str_in_concat_str(terr3.name, key)]
+                    print(f"terr3.name: {terr3.name}")
+                    print(f"l_edges_t2 = {[edge.name for edge in l_edges_t2]}")
+                    edg_c2 = self.get_cross_edge(l_edges_t2, terr3.name)
+                    self.dic_points_cross[edg_c2.name] = edg_c2.p
+                    break
+
             # Store adjacent edges by subtraction
             for edge in self.dic_edges.values():
-                if edge.name != edg_c1.name and edge.name != edge_c2.name:
+                if edge.name != edg_c1.name and edge.name != edg_c2.name:
                     self.dic_points_adj[edge.name] = edge.p
         else:
             warnings.warn(f"get_bound_p not implemented for complete graphs of {self.n} territories.")
+
+    def get_cross_edge(self, l_edges:list[Edge], terr_name:str):
+        """
+        Method that returns the cross edges (i.e. not adjacent)
+        for a given vertex of the complete graph
+        :param l_edges:
+        :return:
+        """
+        l_phi_corr = []
+        # Correct angle's sign based on reference territory
+        for edge in l_edges:
+            if edge.nodes[0] == terr_name:
+                l_phi_corr.append(edge.phi)
+            elif edge.nodes[1] == terr_name:
+                l_phi_corr.append(-edge.phi)
+            else:
+                raise ValueError ("edge does not belong the reference territory")
+
+        l_phi_diff = []
+
+        # Calculate angles differences and pick the smallest sum as one belonging to the cross edge
+        for phi in l_phi_corr:
+            print(f"phi = {phi}")
+            l_phi_diff.append(sum(abs(phi - phi2) for phi2 in l_phi_corr))
+
+        print(f"l_phi_diff = {l_phi_diff}")
+        i_min = l_phi_diff.index(min(l_phi_diff))
+
+        return l_edges[i_min]
+
 
 class CompleteGraphGenerator():
     """
@@ -91,6 +130,28 @@ class CompleteGraphGenerator():
     def make_graph_name(self, l_terr:list[Territory]):
         return "_".join(sorted([f"{terr.name}" for terr in l_terr]))
 
+    def remove_k3s_within_k4s(self):
+        """
+        Method that removes k3 that are part of
+        a k4 subgraph, to avoid drawing upon each other
+        :return:
+        """
+        l_k_x_to_remove = []
+        for graph in self.dic_complete_graphs.values():
+            print(f"graph name = {graph.name}")
+            if graph.n == 3:
+                for graph2 in self.dic_complete_graphs.values():
+                    if graph2.n == 4:
+                        for idx, terr_name in enumerate(graph.name.split("_")):
+                            if not terr_name in graph2.name:
+                                break
+                            elif idx == 2:
+                                l_k_x_to_remove.append(graph.name)
+        for k3_name in l_k_x_to_remove:
+            self.dic_complete_graphs.pop(k3_name)
+            print(f"Removed {k3_name} from complete graphs.")
+
+
     def transfer_complete_graphs(self):
         """
         Method that transfer complete graphs to specific placeholder.
@@ -104,11 +165,11 @@ class CompleteGraphGenerator():
         for graph_name in l_graphs_to_transfer:
             self.dic_complete_graphs[graph_name] = self.dic_incomplete_graphs.pop(graph_name)
 
-    def get_bound_p_for_complete_graphs(self):
+    def get_adj_cross_edges_all_graphs(self):
         """
         Method that saves the boundary points between the territories forming
         complete graphs.
         :return:
         """
         for graph in self.dic_complete_graphs.values():
-            graph.get_bound_p()
+            graph.get_adj_cross_edges()

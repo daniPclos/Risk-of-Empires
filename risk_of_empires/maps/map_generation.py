@@ -23,7 +23,7 @@ class MapGenerator:
         self.dic_pars = dic_pars
         self.dic_terr: dict = {}
         self.color_list = color_palette()
-        self.k_x = None
+        self.k_x_gen = None
 
     def generate_map(self):
         """
@@ -105,27 +105,27 @@ class MapGenerator:
         all connected to each other.
         :return:
         """
-        k_x = CompleteGraphGenerator()
+        k_x_gen = CompleteGraphGenerator()
         for terr_name, terr in self.dic_terr.items():
             # Add potential K3 (triangles) and K4 (cross-squares)
             edges = list(terr.dic_edges.values())
             if len(edges) == 2:
                 terr1 = self.dic_terr[edges[0].nodes[1]]
                 terr2 = self.dic_terr[edges[1].nodes[1]]
-                k_x.add_graph([terr, terr1, terr2],
+                k_x_gen.add_graph([terr, terr1, terr2],
                               {edge.name: edge for edge in edges})
             elif len(edges) == 3:
                 terr1 = self.dic_terr[edges[0].nodes[1]]
                 terr2 = self.dic_terr[edges[1].nodes[1]]
                 terr3 = self.dic_terr[edges[2].nodes[1]]
-                k_x.add_graph([terr, terr1, terr2, terr3],
+                k_x_gen.add_graph([terr, terr1, terr2, terr3],
                               {edge.name: edge for edge in edges})
 
                 # Add K3
                 for i in range(len(edges)):
                     terr1 = self.dic_terr[edges[i].nodes[1]]
                     terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
-                    k_x.add_graph([terr, terr1, terr2],
+                    k_x_gen.add_graph([terr, terr1, terr2],
                                   {edges[i].name: edges[i],
                                    edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)]})
             else:
@@ -133,7 +133,7 @@ class MapGenerator:
                     # Add K3
                     terr1 = self.dic_terr[edges[i].nodes[1]]
                     terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
-                    k_x.add_graph([terr, terr1, terr2],
+                    k_x_gen.add_graph([terr, terr1, terr2],
                                   {edges[i].name: edges[i],
                                    edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)]})
 
@@ -141,15 +141,19 @@ class MapGenerator:
                     terr1 = self.dic_terr[edges[i].nodes[1]]
                     terr2 = self.dic_terr[edges[(i + 1) % len(edges)].nodes[1]]
                     terr3 = self.dic_terr[edges[(i + 2) % len(edges)].nodes[1]]
-                    k_x.add_graph([terr, terr1, terr2, terr3],
+                    k_x_gen.add_graph([terr, terr1, terr2, terr3],
                                   {edges[i].name: edges[i],
                                    edges[(i + 1) % len(edges)].name: edges[(i + 1) % len(edges)],
                                    edges[(i + 2) % len(edges)].name: edges[(i + 2) % len(edges)]})
 
         # transfer complete graphs (keep incomplete graphs as they might be useful in the future)
-        k_x.transfer_complete_graphs()
-        k_x.get_bound_p_for_complete_graphs()
-        self.k_x = k_x
+        k_x_gen.transfer_complete_graphs()
+        print(f"number of k3 = {len([g for g in k_x_gen.dic_complete_graphs.values() if g.n==3])}")
+        print(f"number of k4 = {len([g for g in k_x_gen.dic_complete_graphs.values() if g.n==4])}")
+        k_x_gen.remove_k3s_within_k4s()
+        k_x_gen.get_adj_cross_edges_all_graphs()
+
+        self.k_x_gen = k_x_gen
 
     def add_midtpoints(self):
         """
@@ -181,7 +185,7 @@ class MapGenerator:
         to avoid overlaps.
         :return:
         """
-        for k_x in self.k_x.dic_complete_graphs.values():
+        for k_x in self.k_x_gen.dic_complete_graphs.values():
             if k_x.n == 3:
                 x = np.average([vals[0] for vals in k_x.dic_points_adj.values()])
                 y = np.average([vals[1] for vals in k_x.dic_points_adj.values()])
@@ -196,18 +200,15 @@ class MapGenerator:
                 for edge_name, point in k_x.dic_points_cross.items():
                     l_terr_names.append(edge_name.split('_'))
                     l_points.append(point)
-                print(f"l_points = {l_points}")
-                print(f"l_terr_names = {l_terr_names}")
+
                 # Identify surface point to be deleted and replaced by the other cross edge point
-                # Only point sought put into list since not possible to delete dic elements while iterating on it
+                # Put point into list on 1 element since not possible to delete dic elements while iterating on it
                 for terr_name in l_terr_names[0]:
                     l_p_delete = []
                     for p_name, p in self.dic_terr[terr_name].dic_surf_points.items():
                         if p.point == l_points[0]:
                             l_p_delete.append(p_name)
                     # Add new point and then delete old one
-                    if not l_p_delete:
-                        pass
                     self.dic_terr[terr_name].add_surface_point(l_points[1])
                     del self.dic_terr[terr_name].dic_surf_points[l_p_delete[0]]
 
@@ -318,9 +319,9 @@ def test_map(dic_pars):
 if __name__ == '__main__':
     dic_pars = {
         "display_size": (900, 700),  # Display size (X-pixels, Y-pixels)
-        "n_terr": 20,  # Number of territories
+        "n_terr": 4,  # Number of territories
         "n_cont": 5,  # Number of continents
-        "min_dist": 50,  # Minimum distance between territory centers (pixels)
+        "min_dist": 300,  # Minimum distance between territory centers (pixels)
         "n_edg": 5,  # Maximum number of edges (i.e. boundaries) with other territories
         "phi_min": 0.3  # Minimum angle between 2 edges (avoid creating boundary with a territory that has another in between
     }
