@@ -1,8 +1,6 @@
 import math
 import random
-
 import numpy as np
-
 
 def calc_mid_point(p1, p2):
     """
@@ -69,7 +67,8 @@ def calc_phi_points(p1, p2):
     :param p2:      point 2 (x, y)
     :return:
     """
-    return np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+    phi = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+    return  (phi + 2*np.pi) % (2*np.pi)
 
 
 def calc_dist_points(p1, p2):
@@ -80,3 +79,18 @@ def calc_dist_points(p1, p2):
     :return:
     """
     return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+
+
+def q_coeff(q:str):
+    """
+    Returns x and y coefficient of quadrant q
+    :param q:           Quadrant name
+    :return:
+    """
+    dic_q_coeff = {
+        "Q1": (1, 1),
+        "Q2": (-1, 1),
+        "Q3": (-1, -1),
+        "Q4": (1, -1),
+    }
+    return dic_q_coeff[q]

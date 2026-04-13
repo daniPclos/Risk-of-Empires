@@ -1,6 +1,7 @@
 import numpy as np
 from risk_of_empires.maps.edges import Edge, SurfacePoint
-from risk_of_empires.utilities.geometry_tools import calc_dist_points, calc_phi_points, calc_mid_point, calc_quadrant
+from risk_of_empires.utilities.geometry_tools import calc_dist_points, calc_phi_points, calc_mid_point, calc_quadrant, \
+    q_coeff
 
 
 class Territory():
@@ -45,6 +46,12 @@ class Territory():
         self.dic_edges[name] = edge
         self.dic_quadrants[q] = 1
 
+        print(f"edge name = {edge.name}")
+        print(f"center = {self.center}")
+        print(f"p = {p}")
+        print(f"phi = {phi}")
+        print("\n\n")
+
     def delete_edge(self, name):
         """
         Delete an edge from the territory
@@ -56,7 +63,7 @@ class Territory():
         except KeyError:
             print(f"Edge {name} not found")
 
-    def add_point_to_quadrant(self, q:str, map_size:tuple):
+    def generate_point_to_quadrant(self, q:str, map_size:tuple):
         """
         Method that fills surface points in quadrants
         around the territory's center where there are no
@@ -72,8 +79,8 @@ class Territory():
             y_max = max(y_max, np.abs(edge.l * np.sin(edge.phi))/2)
 
         # Calculate distance to edge of the map
-        x_lim = map_size[0] * (min(1, 1 + q_coeff(q)[0]) - q_coeff(q)[0] * self.center[0]/map_size[0])
-        y_lim = map_size[1] * (min(1, 1 + q_coeff(q)[1]) - q_coeff(q)[1] * self.center[1]/map_size[1])
+        x_lim = map_size[0] * (min(1, 1 + q_coeff(q)[0]) - q_coeff(q)[0] * self.center[0] / map_size[0])
+        y_lim = map_size[1] * (min(1, 1 + q_coeff(q)[1]) - q_coeff(q)[1] * self.center[1] / map_size[1])
 
         # Return point in quadrant ensuring that doesn't fall beyond the edge of the map
         return (self.center[0] + q_coeff(q)[0] * min(x_max, x_lim), self.center[1] + q_coeff(q)[1] * min(y_max, y_lim))
@@ -101,20 +108,5 @@ class Territory():
         else:
             dic_edges = dict(sorted(self.dic_edges.items(), key=lambda item: item[1].phi))
             self.dic_edges = dic_edges
-
-
-def q_coeff(q:str):
-    """
-    Returns x and y coefficient of quadrant q
-    :param q:           Quadrant name
-    :return:
-    """
-    dic_q_coeff = {
-        "Q1": (1, 1),
-        "Q2": (-1, 1),
-        "Q3": (-1, -1),
-        "Q4": (1, -1),
-    }
-    return dic_q_coeff[q]
 
 

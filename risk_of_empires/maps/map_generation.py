@@ -176,7 +176,7 @@ class MapGenerator:
         for terr_name, terr in self.dic_terr.items():
             for q, val in terr.dic_quadrants.items():
                 if val==0:
-                    p = terr.add_point_to_quadrant(q, self.dic_pars["display_size"])
+                    p = terr.generate_point_to_quadrant(q, self.dic_pars["display_size"])
                     terr.add_surface_point(p)
 
     def add_boundary_points(self):

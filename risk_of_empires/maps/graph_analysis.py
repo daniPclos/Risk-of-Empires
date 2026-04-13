@@ -1,7 +1,10 @@
 import warnings
+import numpy as np
 from risk_of_empires.maps.edges import Edge
 from risk_of_empires.maps.territories import Territory
 from risk_of_empires.utilities.misc_tools import is_str_in_concat_str
+from risk_of_empires.utilities.geometry_tools import q_coeff
+
 
 class SubGraphX:
     """
@@ -76,12 +79,11 @@ class SubGraphX:
         :return:
         """
         l_phi_corr = []
-        # Correct angle's sign based on reference territory
         for edge in l_edges:
             if edge.nodes[0] == terr_name:
                 l_phi_corr.append(edge.phi)
             elif edge.nodes[1] == terr_name:
-                l_phi_corr.append(-edge.phi)
+                l_phi_corr.append(edge.phi + np.pi*q_coeff(edge.q)[1]) # Correct angle if territory node is reversed
             else:
                 raise ValueError ("edge does not belong the reference territory")
 
