@@ -81,9 +81,10 @@ class SubGraphX:
         l_phi_corr = []
         for edge in l_edges:
             if edge.nodes[0] == terr_name:
-                l_phi_corr.append(edge.phi)
+                l_phi_corr.append(min(edge.phi, 2 * np.pi - edge.phi))
             elif edge.nodes[1] == terr_name:
-                l_phi_corr.append(edge.phi + np.pi*q_coeff(edge.q)[1]) # Correct angle if territory node is reversed
+                corr_phi = edge.phi + np.pi*q_coeff(edge.q)[1]  # Correct angle if territory node is reversed
+                l_phi_corr.append(min(corr_phi, 2 * np.pi - corr_phi))
             else:
                 raise ValueError ("edge does not belong the reference territory")
 
