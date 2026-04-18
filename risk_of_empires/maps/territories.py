@@ -46,11 +46,6 @@ class Territory():
         self.dic_edges[name] = edge
         self.dic_quadrants[q] = 1
 
-        print(f"edge name = {edge.name}")
-        print(f"center = {self.center}")
-        print(f"p = {p}")
-        print(f"phi = {phi}")
-        print("\n\n")
 
     def delete_edge(self, name):
         """

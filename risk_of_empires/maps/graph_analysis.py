@@ -38,28 +38,20 @@ class SubGraphX:
             self.dic_points_adj = {edge.name: edge.p for edge in self.dic_edges.values()}
 
         elif self.n==4:
-            # Identify first cross-edge and then 2nd edge after ordering by phi
+            # Identify first cross-edge
             terr1 = self.l_terr[0]
-            for terr in self.l_terr:
-                print(f"{terr.name} has center {terr.center}")
-            # Method using minimum phi difference between edges
+            # Identify edges belonging to terr1
             l_edges_t1 = [val for key, val in self.dic_edges.items() if is_str_in_concat_str(terr1.name, key)]
-            print(f"terr1.name: {terr1.name}")
-            print(f"l_edges_t1 =  {[edge.name for edge in l_edges_t1]}")
             edg_c1 = self.get_cross_edge(l_edges_t1, terr1.name)
-            print(f"edg_c1.name: {edg_c1.name}")
             self.dic_points_cross[edg_c1.name] = edg_c1.p
 
             # Identify the other crossed edge by doing the same with one of the territories not bordering edg_c1
             terr2_c1_name = [t for t in edg_c1.nodes if t!=terr1.name][0]
-            print(f"terr2_c1_name: {terr2_c1_name}")
             for terr3 in self.l_terr[1:]:
                 if terr3.name != terr2_c1_name:
                     # Method using minimum phi difference between edges
                     l_edges_t2 = [val for key, val in self.dic_edges.items() if
                                       is_str_in_concat_str(terr3.name, key)]
-                    print(f"terr3.name: {terr3.name}")
-                    print(f"l_edges_t2 = {[edge.name for edge in l_edges_t2]}")
                     edg_c2 = self.get_cross_edge(l_edges_t2, terr3.name)
                     self.dic_points_cross[edg_c2.name] = edg_c2.p
                     break
@@ -74,28 +66,30 @@ class SubGraphX:
     def get_cross_edge(self, l_edges:list[Edge], terr_name:str):
         """
         Method that returns the cross edges (i.e. not adjacent)
-        for a given vertex of the complete graph
+        for a given vertex in a complete graph.
+        OBS for complete graphs larger than K4 only one of the multiple
+        cross edges will be returned.
         :param l_edges:
         :return:
         """
         l_phi_corr = []
+        # Correct angle if edge corresponds with the neighbour edge, not the reference by adding or subtracting pi,
+        # depending on the quadrants the edges belong
         for edge in l_edges:
             if edge.nodes[0] == terr_name:
-                l_phi_corr.append(min(edge.phi, 2 * np.pi - edge.phi))
+                l_phi_corr.append(edge.phi)
             elif edge.nodes[1] == terr_name:
-                corr_phi = edge.phi + np.pi*q_coeff(edge.q)[1]  # Correct angle if territory node is reversed
-                l_phi_corr.append(min(corr_phi, 2 * np.pi - corr_phi))
+                l_phi_corr.append(edge.phi + np.pi*q_coeff(edge.q)[1])
             else:
                 raise ValueError ("edge does not belong the reference territory")
 
         l_phi_diff = []
 
-        # Calculate angles differences and pick the smallest sum as one belonging to the cross edge
+        # Calculate minimum angles differences (using complementary angle when smaller)
+        # and pick the smallest sum as one belonging to the cross edge
         for phi in l_phi_corr:
-            print(f"phi = {phi}")
-            l_phi_diff.append(sum(abs(phi - phi2) for phi2 in l_phi_corr))
+            l_phi_diff.append(sum(min(abs(phi - phi2), 2*np.pi - abs(phi - phi2)) for phi2 in l_phi_corr))
 
-        print(f"l_phi_diff = {l_phi_diff}")
         i_min = l_phi_diff.index(min(l_phi_diff))
 
         return l_edges[i_min]
@@ -141,7 +135,6 @@ class CompleteGraphGenerator():
         """
         l_k_x_to_remove = []
         for graph in self.dic_complete_graphs.values():
-            print(f"graph name = {graph.name}")
             if graph.n == 3:
                 for graph2 in self.dic_complete_graphs.values():
                     if graph2.n == 4:
